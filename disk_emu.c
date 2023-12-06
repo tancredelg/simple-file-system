@@ -9,7 +9,7 @@
 FILE* fp = NULL;
 double L, p;
 double r;
-int BLOCK_SIZE, MAX_BLOCK, MAX_RETRY;
+int BLOCK_SIZE = 1024, MAX_BLOCK = 500, MAX_RETRY;
 
 /*----------------------------------------------------------*/
 /*Close the disk file filled when you don't need it anymore. */
