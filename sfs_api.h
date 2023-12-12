@@ -1,7 +1,10 @@
 #ifndef SFS_API_H
 #define SFS_API_H
 
-// You can add more into this file.
+typedef struct Inode Inode;
+typedef struct SuperBlock SuperBlock;
+typedef struct DirEntry DirEntry;
+typedef struct File File;
 
 void mksfs(int);
 
