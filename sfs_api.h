@@ -1,7 +1,30 @@
 #ifndef SFS_API_H
 #define SFS_API_H
 
-// You can add more into this file.
+#include <sys/types.h>
+
+#define MAX_FILENAME_LENGTH 31
+
+#define BYTE_OFFSET(b) ((b) / 8)
+#define BIT_OFFSET(b)  ((b) % 8)
+
+typedef u_char Byte;
+
+void printByte(Byte *byte);
+
+void setBit(Byte *bytes, int n);
+
+void clearBit(Byte *bytes, int n);
+
+int getBit(const Byte *bytes, int n);
+
+int sfs_countFreeDataBlocks(void);
+
+int sfs_getFreeDataBlock(void);
+
+int sfs_getNextFreeFDTPos(int);
+
+int sfs_getNextFreeDirEntry(int);
 
 void mksfs(int);
 
