@@ -4,12 +4,13 @@
 #include <malloc.h>
 #include <memory.h>
 #include <math.h>
+#include <string.h>
 
 #include "sfs_api.h"
 #include "disk_emu.h"
 
 #define B 1024
-#define Q 8306
+#define Q 8306 // MUST BE SAME VALUE AS MAX_BLOCK (in disk_eum.c)
 #define M 112 // Calculate by running 'python calc_disk_alloc.py <Q>'
 #define N 8192 // Calculate by running 'python calc_disk_alloc.py <Q>'
 #define L 1 // Calculate by running 'python calc_disk_alloc.py <Q>'
@@ -74,7 +75,7 @@ int getBit(const Byte *bytes, int n) {
 
 int sfs_countFreeDataBlocks(void) {
     int count = 0;
-    for (int i = 0; i < 8 * B * superBlock.fbmSize; ++i) {
+    for (int i = 0; i < N; ++i) {
         if (getBit(&fbm[BYTE_OFFSET(i)], i) == 0)
             ++count;
     }
@@ -82,7 +83,7 @@ int sfs_countFreeDataBlocks(void) {
 }
 
 int sfs_getFreeDataBlock(void) {
-    for (int i = 0; i < 8 * B * superBlock.fbmSize; ++i) {
+    for (int i = 0; i < N; ++i) {
         if (getBit(&fbm[BYTE_OFFSET(i)], i) == 0)
             return i;
     }
@@ -312,21 +313,24 @@ int sfs_fwrite(int fd, const char *buf, int length) {
     }
     
     printf("sfs_write: preparing for write...\n");
+
+    // Get start and end blocks
+    int startBlockNum = FDT[fd].rwHeadPos / B;
+    int endBlockNum = (FDT[fd].rwHeadPos + length) / B;
+    
     int lastBlockOffset = inode.size % B;
     int lastBlockSpaceLeft = B - lastBlockOffset;
     if (inode.size == 0)
         lastBlockSpaceLeft = 0;
     
-    int blocksUsedBefore = inode.size / B;
-    if (inode.size % B != 0)
-        ++blocksUsedBefore;
-    int extraBlocksNeeded = (length - lastBlockSpaceLeft) / B;
-    if ((length - lastBlockSpaceLeft) % B != 0)
-        ++extraBlocksNeeded;
+    int blocksUsedBefore = inode.size / B + (inode.size % B != 0 ? 1 : 0);
+    int extraBlocksNeeded = (length - lastBlockSpaceLeft) / B + ((length - lastBlockSpaceLeft) % B != 0 ? 1 : 0);
     int blocksUsedAfter = blocksUsedBefore + extraBlocksNeeded;
     if (blocksUsedBefore <= 12 && blocksUsedAfter > 12) // Need to include the indirect pointer block itself
         ++extraBlocksNeeded;
 
+    printf("  startBlockNum = %d\n", startBlockNum);
+    printf("  endBlockNum = %d\n", endBlockNum);
     printf("  lastBlockOffset = %d\n", lastBlockOffset);
     printf("  lastBlockSpaceLeft = %d\n", lastBlockSpaceLeft);
     printf("  blocksUsedBefore = %d\n", blocksUsedBefore);
