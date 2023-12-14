@@ -49,20 +49,20 @@ Unlike the super block, multiple inodes can occupy the same block consecutively,
 the only space wasted is in the last block of the inode table, i.e. the leftover space in the block containing the
 last inode.
 
-With 12 direct pointers and 1 single-level indirect pointer, an inode can point to up to 12 + 1 * 1024 = 1036 data
-blocks, for a maximum file size of 1036 * 1024 = 1060864B = 1036KB = ~1.01MB.
+With 12 direct pointers and 1 single-level indirect pointer, an inode can point to up to `12 + (1 * (1024 / 4)) = 268`
+data blocks, for a maximum file size of 268KB, or 274432B.
 
 ##### Root Directory
 
 The root directory metadata is stored like any other file metadata, in an inode, found within the inode table. The
-data block pointers in it's inode point to data blocks storing directory entries, which have the following format:
+data blocks pointed to in it's inode store directory entries, which have the following format:
 
 | used | &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; filename &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; | &nbsp;&nbsp; inode &nbsp;&nbsp; |
 |:----:|:----------------------------------------------------------------------------------------------------------------------------------------------:|:-------------------------------:|
-|  1   |                                                                       21                                                                       |                2                |
+|  1   |                                                                       31                                                                       |                2                |
 
-In total, each directory has a size of `1 + 21 + 2 = 24b = 3B`. This means that for a file system with 1000 files, the
-number of data blocks needed for their directory entries is `(1000 * 3) / 1024 = ~2.92 = 3` blocks.
+In total, each directory entry has a size of `1 + 31 + 2 = 34`. This means that for a file system with 1000 files, the
+number of data blocks needed for the directory entries is `ceil(1000 * 34 / 1024) = 34` blocks.
 
 #### Data Blocks
 
@@ -72,9 +72,13 @@ In this file system, all blocks - including data blocks - have a size of 8192b (
 #### Free Bitmap
 
 The free bitmap for this file system uses bits (not bytes) to track the availability/occupancy of every data block. 
-This means that `1024 * 8 = 8192` data blocks can be tracked in a 1-block free bitmap, and another `(1024 - n) * 8` blocks for
-every additional block allocated to the bitmap, where the last n bytes of each block of the bitmap (except the last)
-are reserved for pointing to the next block of the bitmap.
+This means that `1024 * 8 = 8192` data blocks can be tracked by each block of the free bitmap. The blocks allocated to
+the free bitmap (L) are at the 'end' of the file system.
+
+For example, suppose our file system has 10000 blocks in total (`Q = 10000`), and we allocate 2 blocks to the free
+bitmap (`L = 2`), then the addresses of the free bitmap blocks will be 9998 and 9999.
+
+In general, the free bitmap starts at block `Q - L - 1`, and ends at block `Q - 1` (-1 since addresses start at 0).
 
 ### Allocation of Disk Space
 
@@ -100,19 +104,14 @@ For this file system, the assumption is made that the average file size will be 
 
 #### Calculation of N from L
 
-The number of data blocks (N) - and consequently the number of inodes & inode blocks (M) - depend not only on Q, but
-also on the size of the free bitmap.
+Since all data blocks need to be tracked for availability, the number of data blocks (N) - and consequently the number
+of inodes & inode blocks (M) - depend not only on Q, but also on L, the size of the free bitmap.
 
-As explained previously, when `L = 1` the free bitmap can track a maximum of `1024 * 8` data blocks, and when `L > 1`
-the free bitmap can track additional `(1024 - n) * 8` for each additional bitmap block after the first.
-
-Using a 4B pointer to link blocks of the free bitmap (`n = 4`), the maximum number of data blocks (N) is
-calculated as follows:
+As explained previously, the free bitmap can track a maximum of 8192 data blocks per free bitmap block, so the maximum
+number of data blocks is simply:
 
 ```c
-N = (1024 * 8) + ((L - 1) * (1024 - 4) * 8)
-
-N = 32 + (8160 * L)
+N = 8192 * L
 ```
 
 #### Calculation of M from N and L
@@ -132,9 +131,9 @@ M = (7 * N) / 512
 This can then be written in terms of L using the equation for N derived in the previous section:
 
 ```c
-M = (7 * (32 + (8160 * L))) / 512
-// Substitute S = 4
-M = (7 + (1785 * L)) / 16
+M = (7 * (8192 * L))) / (128 * S)
+// Substitute N = 8192 * L, S = 4
+M = 112 * L
 ```
 
 _Notice how these equations derived for M depend on S, the assumed average file size. So, if the average file size
@@ -151,22 +150,21 @@ Since N and M can be expressed in terms of L, we can simplify the main equation 
 
 ```c
 Q = 1 + M + N + L
-  = 1 + ((7 + (1785 * L)) / 16) + (32 + (L * 8160)) + L
+  = 1 + (112 * L) + (8192 * L) + L
 
-Q = 33 + (8161 * L) + (7 + (1785 * L)) / 16
+Q = 1 + (8305 * L)
 ```
 
-and since Q is supplied, solve for L, and - since L the minimum whole number
-of blocks - round the result up with ceil():
+Solve for L and - since L is a number of whole blocks - round the result up with ceil():
 
 ```c
-L = ceil(((16 * Q) - 535) / 132361)
+L = ceil((Q - 1) / 8305)
 ```
 
 #### Calculation of M and N from Q
 
 With a value for L using the equation above, M and N could be calculated using the equations derived earlier. However,
-this has 2 problems:
+this has a problem.
 1. The equation for N in terms of L from earlier calculates the maximum N for a given L, without respect to Q. This 
 could result in overallocation of blocks to N. 
 2. Since both M and N need to be whole numbers, they need to be rounded. This could cause situations where the total 
@@ -182,14 +180,13 @@ For N, the result should still be rounded in order to get a whole number of bloc
 Q = 1 + M + N + L
   = 1 + ((7 * N) / 512) + N + L
 // Solve for N
-N = Q - 1 - M - L
-  = Q - 1 - ((7 * N) / 512) - L
-  = (512 * (Q - 1 - L)) / 519
+N = (Q - 1 - L) / 113
 // Round up
-N = ceil((512 * (Q - 1 - L)) / 519)
+N = ceil((Q - 1 - L) / 113)
 ```
 
 Now, with Q, L and N known, calculating M is trivial:
+
 ```c
 M = Q - 1 - N - L
 ```
