@@ -376,7 +376,7 @@ main(int argc, char **argv)
   }
 
   printf("Directory listing\n");
-  char *filename = (char *)malloc(MAXFILENAME);
+  char *filename = (char *)malloc(MAX_FNAME_LENGTH);
   int max = 0;
   while (sfs_getnextfilename(filename)) {
 	  if (strcmp(filename, names[max]) != 0) {
@@ -416,6 +416,7 @@ main(int argc, char **argv)
   }
 
   for (i = 0; i < max; i++) {
+      printf("sfs_remove(names[%d]);\n", i);
 	  sfs_remove(names[i]);
   }
 
