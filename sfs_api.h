@@ -20,7 +20,7 @@ int getBit(const Byte *bytes, int n);
 
 int sfs_countFreeDataBlocks(void);
 
-int sfs_getFreeDataBlock(void);
+int sfs_getFreeDataBlockAddress(void);
 
 int sfs_getNextFreeFDTPos(int);
 
