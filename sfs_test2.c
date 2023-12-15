@@ -416,7 +416,6 @@ main(int argc, char **argv)
   }
 
   for (i = 0; i < max; i++) {
-      printf("sfs_remove(names[%d]);\n", i);
 	  sfs_remove(names[i]);
   }
 

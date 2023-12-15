@@ -6,8 +6,8 @@ LDFLAGS = `pkg-config fuse --cflags --libs` -lm
 #SOURCES= disk_emu.c sfs_api.c sfs_test0.c sfs_api.h
 SOURCES= disk_emu.c sfs_api.c sfs_test1.c sfs_api.h
 #SOURCES= disk_emu.c sfs_api.c sfs_test2.c sfs_api.h
-#SOURCES= disk_emu.c sfs_api.c sfs_inode.c sfs_dir.c fuse_wrap_old.c sfs_api.h
-#SOURCES= disk_emu.c sfs_api.c sfs_inode.c sfs_dir.c fuse_wrap_new.c sfs_api.h
+#SOURCES= disk_emu.c sfs_api.c fuse_wrap_old.c sfs_api.h
+#SOURCES= disk_emu.c sfs_api.c fuse_wrap_new.c sfs_api.h
 
 OBJECTS=$(SOURCES:.c=.o)
 EXECUTABLE=sfs_tlamor1

@@ -12,7 +12,7 @@
  * upper-case letters and periods ('.') characters. Feel free to
  * change this if your implementation differs.
  */
-#define MAX_FNAME_LENGTH 31   /* Assume at most 20 characters (16.3) */
+#define MAX_FNAME_LENGTH 32   /* Assume at most 20 characters (16.3) */
 
 /* The maximum number of files to attempt to open or create.  NOTE: we
  * do not _require_ that you support this many files. This is just to
@@ -282,7 +282,7 @@ main(int argc, char **argv)
       error_count++;
     }
   }
-  printf("ok (error_count = %d)\n", error_count);
+  printf("ok\n");
   /* Now we try to re-initialize the system.
    */
   mksfs(0);
@@ -293,10 +293,7 @@ main(int argc, char **argv)
     if (fds[i] >= 0) {
       readsize = sfs_fread(fds[i], fixedbuf, sizeof(fixedbuf));
       if (readsize != strlen(test_str)) {
-        fprintf(stderr, "ERROR: Read wrong number of bytes (expected %llu)\n", strlen(test_str));
-          for (int l = 0; l < strlen(test_str) && l < readsize; ++l) {
-              printf("got %d instead of %d\n", fixedbuf[l], test_str[l]);
-          }
+        fprintf(stderr, "ERROR: Read wrong number of bytes\n");
         error_count++;
       }
 
@@ -305,9 +302,6 @@ main(int argc, char **argv)
           fprintf(stderr, "ERROR: Wrong byte in %s at %d (%d,%d)\n", 
                   names[i], j, fixedbuf[j], test_str[j]);
           printf("%d\n", fixedbuf[1]);
-            for (int l = 0; l < strlen(test_str) && l < readsize; ++l) {
-                printf("got %d instead of %d\n", fixedbuf[l], test_str[l]);
-            }
           error_count++;
           break;
         }
@@ -352,7 +346,7 @@ main(int argc, char **argv)
   else {
     fprintf(stderr, "ERROR: re-opening file %s\n", names[0]);
   }
-  printf("\n\neverything ok until there\n\n\n");
+  /* printf("everything ok until there\n"); */
 
   /* Now, having filled up the disk, try one more time to read the
    * contents of the files we created.
@@ -362,7 +356,6 @@ main(int argc, char **argv)
     sfs_fseek(fds[i], 0);
     if (fds[i] >= 0) {
       readsize = sfs_fread(fds[i], fixedbuf, sizeof(fixedbuf));
-        printf("READ %d bytes (expected %llu)\n", readsize, strlen(test_str));
       if (readsize < strlen(test_str)) {
         fprintf(stderr, "ERROR: Read wrong number of bytes\n");
         error_count++;

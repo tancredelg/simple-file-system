@@ -12,13 +12,13 @@
 
 
 // -- CONSTANTS --
-#define B 1024 // Block size
-#define Q 8306 // MUST SET THE SAME VALUE FOR MAX_BLOCK (in disk_eum.c)
+#define B 1024 // Block size - MUST SET THE SAME VALUE FOR `BLOCK_SIZE` (in disk_eum.c)
+#define Q 8306 // Total number of blocks for the file system - MUST SET THE SAME VALUE FOR `MAX_BLOCK` (in disk_eum.c)
 #define M 112 // Number of inode table blocks - calculated by running 'python calc_disk_alloc.py <Q>'
 #define N 8192 // Number of data blocks - calculated by running 'python calc_disk_alloc.py <Q>'
 #define L 1 // Number of free bitmap blocks - calculated by running 'python calc_disk_alloc.py <Q>'
 #define DIR_SIZE 2048  // Max directory size (number of files) - calculated by running 'python calc_disk_alloc.py <Q>'
-#define MAX_FILENAME_LENGTH 31
+#define MAX_FILENAME_LENGTH 32
 #define MAX_FILE_SIZE (268 * B)
 #define FDT_SIZE 10
 char DISKNAME[] = "SFS_DISK";
