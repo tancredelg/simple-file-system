@@ -1,5 +1,30 @@
 # Simple File System
+
+## Running
+
+### Makefile
+
+The [makefile](Makefile) needs to have `-lm` at the end of the LDFLAGS. The sfs api is implemented entirely in
+[sfs_api.c](sfs_api.c), there are no other files part of the api (except it's corresponding header file).
+
+### Test Files
+
+The original test files had 1 or 2 bugs in them:
+- [sfs_test1.c](sfs_test1.c) line 366: There seemed to have been a misplaced semicolon before the body of the for loop, meaning that
+the body statement of the loop never executed. This semicolon was removed.
+- [sfs_test2.c](sfs_test2.c): `MAXFILENAME` was undefined - this was fixed by renaming the equivalent constant I had originally put in
+sfs_api.c, and moving it to sfs_api.c to expose it to sfs_test2.c.
+
+There may have been other bugs which I don't remember, so you can always check the difference between the original tests
+and the amended ones.
+
+### [sfs_api.c](sfs_api.c) vs [sfs_api_verbose.c](sfs_api.c)
+
+The 2 should the exact same under the hood, except sfs_api_verbose.c prints a load of debug information throughout it's
+execution
+
 ## Design
+
 ### Overview
 
 This is a very simple file system, with no file permissions, users, groups, or multiple directories. It only has a root
@@ -24,11 +49,15 @@ The super block needs only 1 block, and has the following format:
 | Magic                                                       |
 | Block Size                                                  |
 | File System Size                                            |
-| Inode Table Size                                            |
-| Root Directory inode number                                 |
+| Inode Table Region Size                                     |
+| Data Blocks Region Size                                     |
+| Free Bitmap Region Size                                     |
+| Root Directory Inode                                        |
 | ... <br/> *the rest of the block is unused space* <br/> ... |
 
-Each field is 4B, so only 5 * 4 = 20B of the 1024B allocated for the super block will be used.
+The first six members are all int (4B), and the last member's (the root directory inode) type an Inode struct (56B). In
+total, this means only the first 80 of the 1024 bytes available to the super block are used, the rest is empty, wasted
+space.
 
 #### Inodes & Inode Table
 
@@ -43,10 +72,12 @@ Inodes have the following format:
 | Direct data block pointer 12    |
 | Single-level indirect pointer 1 |
 
-Each field is 4B, so the total inode size is (1 + 12 + 1) * 4 = 56B.
+In practice, the block pointers are all stored together in an array of size 13 - the first 12 are the direct pointers, 
+and the last slot is for the indirect pointer. The type of the size and pointers alike are all int, so the total size of
+the Inode struct is 56B.
 
-Unlike the super block, multiple inodes can occupy the same block consecutively, and even be split over 2 blocks, so
-the only space wasted is in the last block of the inode table, i.e. the leftover space in the block containing the
+Unlike the super block, multiple inodes will occupy the same block consecutively, and could even be split over 2 blocks,
+so the only space wasted is in the last block of the inode table, i.e. the leftover space in the block containing the
 last inode.
 
 With 12 direct pointers and 1 single-level indirect pointer, an inode can point to up to `12 + (1 * (1024 / 4)) = 268`
@@ -59,10 +90,10 @@ data blocks pointed to in it's inode store directory entries, which have the fol
 
 | used | &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; filename &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; | &nbsp;&nbsp; inode &nbsp;&nbsp; |
 |:----:|:----------------------------------------------------------------------------------------------------------------------------------------------:|:-------------------------------:|
-|  1   |                                                                       31                                                                       |                2                |
+|  1   |                                                                       32                                                                       |                2                |
 
-In total, each directory entry has a size of `1 + 31 + 2 = 34`. This means that for a file system with 1000 files, the
-number of data blocks needed for the directory entries is `ceil(1000 * 34 / 1024) = 34` blocks.
+In total, each directory entry has a size of `1 + 32(+1 for padding) + 2 = 36`. This means that for a file system with
+1000 files, the number of data blocks needed for the directory entries is `ceil(1000 * 36 / 1024) = 36` blocks.
 
 #### Data Blocks
 
@@ -73,7 +104,7 @@ In this file system, all blocks - including data blocks - have a size of 8192b (
 
 The free bitmap for this file system uses bits (not bytes) to track the availability/occupancy of every data block. 
 This means that `1024 * 8 = 8192` data blocks can be tracked by each block of the free bitmap. The blocks allocated to
-the free bitmap (L) are at the 'end' of the file system.
+the free bitmap (L) are at the 'end' of the file system (last L consecutive blocks).
 
 For example, suppose our file system has 10000 blocks in total (`Q = 10000`), and we allocate 2 blocks to the free
 bitmap (`L = 2`), then the addresses of the free bitmap blocks will be 9998 and 9999.
@@ -194,6 +225,7 @@ M = Q - 1 - N - L
 #### Restriction on Q
 The minimum value of Q that would work with the equation used to calculate N can be found by substituting the minimum
 values for M and L - which are both 1 - and the equation for N in terms of Q, into the main equation:
+
 ```c
 Q >= 1 + 1 + N + 1
   = 1 + 1 + ((512 * (Q - 1 - 1)) / 519) + 1
@@ -201,3 +233,8 @@ Q >= 1 + 1 + N + 1
 Q >= ceil(76.143)
 Q >= 77
 ```
+
+and now we have everything we need to implement the simple file system API.
+
+The python script [calc_disk_alloc.py](calc_disk_alloc.py) will calculate all the values needed for you - you just
+specify the total number of blocks for the file system (Q).

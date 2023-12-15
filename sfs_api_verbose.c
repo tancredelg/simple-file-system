@@ -83,6 +83,14 @@ int getBit(const Byte *bytes, int n) {
     return bit != 0;
 }
 
+// Prints a specified byte as a string of 8 bits
+void printByte(Byte *byte) {
+    for (int i = 0; i < 8; ++i) {
+        printf("%d", getBit(byte, i));
+    }
+    printf(" (%d)", *byte);
+}
+
 // Returns the total number of data blocks that have not been allocated
 int sfs_countFreeDataBlocks(void) {
     int count = 0;
@@ -127,12 +135,47 @@ int sfs_getNextFreeFDTPos(int startPos) {
 
 // Finds up the first directory entry not in use
 int sfs_getNextFreeDirEntry(int startPos) {
+    printf("sfs_getNextFreeDirEntry: searching for next free entry...\n");
     for (int i = 0; i < DIR_SIZE; ++i) {
         if (rootDirEntries[(startPos + i) % DIR_SIZE].used == 0) {
+            printf("  rootDirEntries[%d].used == %d <-- FREE\n", (startPos + i) % DIR_SIZE, rootDirEntries[(startPos + i) % DIR_SIZE].used);
             return (startPos + i) % DIR_SIZE;
         }
+        printf("  rootDirEntries[%d].used == %d\n", (startPos + i) % DIR_SIZE, rootDirEntries[(startPos + i) % DIR_SIZE].used);
     }
     return -1; // Root directory is full
+}
+
+// Helper to visualize the directory entries THAT ARE IN USE
+void printDirectory(void) {
+    printf("\n---- ROOT DIRECTORY ----\n");
+    for (int i = 0; i < DIR_SIZE; ++i) {
+        if (rootDirEntries[i].used == 0)
+            continue;
+        
+        printf("[%d]  '%s'  (inode %d)\n", i, rootDirEntries[i].filename, rootDirEntries[i].inodeNum);
+    }
+    printf("\n");
+}
+
+// Helper to visualize the file descriptor table
+void printFDT(void) {
+    printf("\n---- FDT ----\n");
+    for (int i = 0; i < FDT_SIZE; ++i) {
+        printf("[%d]  Inode %d  rwHeadPos = %d\n", i, FDT[i].inodeNum, FDT[i].rwHeadPos);
+    }
+    printf("\n");
+}
+
+// Helper to visualize free bitmap
+void printFreeBitmap(void) {
+    printf("\n---- FREE BITMAP ----\n");
+    for (int i = 0; i < L * B * 8; ++i) {
+        printf("%d", getBit(fbm, i));
+        if (i > 1 && (i + 1) % (B / 8) == 0)
+            printf(" bits %d-%d\n", i + 1 - (B / 8), i);
+    }
+    printf("\n");
 }
 
 // Gets the data block pointers (excluding the indirect pointer block) of an inode (up to `blocksToGet`)
@@ -157,26 +200,38 @@ int getInodeBlockPointers(Inode inode, int pointers[], int blocksToGet) {
 
 void mksfs(int fresh) {
     if (fresh) { // New file system
+        printf("mksfs: init fresh disk\n");
         init_fresh_disk(DISKNAME, B, Q);
 
         // Init super block
+        printf("mksfs: init super block...\n");
         superBlock.blockSize = B;
         superBlock.sfsSize = Q;
         superBlock.inodeTableSize = M;
         superBlock.dataBlocksCount = N;
         superBlock.fbmSize = L;
         superBlock.rootDir.size = DIR_SIZE * sizeof(DirEntry);
+        printf("  superBlock.blockSize = %d\n", superBlock.blockSize);
+        printf("  superBlock.sfsSize = %d\n", superBlock.sfsSize);
+        printf("  superBlock.inodeTableSize = %d\n", superBlock.inodeTableSize);
+        printf("  superBlock.dataBlocksCount = %d\n", superBlock.dataBlocksCount);
+        printf("  superBlock.fbmSize = %d\n", superBlock.fbmSize);
+        printf("  superBlock.rootDir.size = %d\n", superBlock.rootDir.size);
 
         // Init inode table and root directory
+        printf("mksfs: init inode table and root directory...\n");
         for (short i = 0; i < DIR_SIZE; ++i) {
             inodeTable[i].size = -1;
             rootDirEntries[i].inodeNum = i;
         }
+        printDirectory();
 
         // Write inodeTable to disk
+        printf("mksfs: writing inode table to disk\n");
         write_blocks(1, superBlock.inodeTableSize, inodeTable);
 
         // Allocate blocks for root dir and then write the root dir to disk
+        printf("mksfs: writing root directory to disk\n");
         int dirSizeInBlocks = ceil((double)superBlock.rootDir.size / B);
         if (dirSizeInBlocks > 12) // Add a block for the indirect pointers
             ++dirSizeInBlocks;
@@ -206,19 +261,36 @@ void mksfs(int fresh) {
         }
         // Write directory entries to disk (we assume that the data blocks allocated are contiguous and in order)
         write_blocks(dirBlockPointers[0], dirSizeInBlocks - 1, rootDirEntries);
+        printf("  root dir is stored in blocks %d to %d\n", superBlock.rootDir.blockPointers[0], superBlock.rootDir.blockPointers[0] + dirSizeInBlocks - 1);
         
         // Write the super block to disk too
+        printf("mksfs: writing super block to disk\n");
         write_blocks(0, 1, &superBlock);
     } else { // Existing file system
+        printf("mksfs: init old disk\n");
         init_disk(DISKNAME, B, Q);
 
         // Load super block
+        printf("mksfs: loading super block...\n");
         read_blocks(0, 1, &superBlock);
+        printf("  superBlock.blockSize = %d\n", superBlock.blockSize);
+        printf("  superBlock.sfsSize = %d\n", superBlock.sfsSize);
+        printf("  superBlock.inodeTableSize = %d\n", superBlock.inodeTableSize);
+        printf("  superBlock.dataBlocksCount = %d\n", superBlock.dataBlocksCount);
+        printf("  superBlock.fbmSize = %d\n", superBlock.fbmSize);
+        printf("  superBlock.rootDir.size = %d\n", superBlock.rootDir.size);
 
         // Load inode table
+        printf("mksfs: loading inode table...\n");
         read_blocks(1, superBlock.inodeTableSize, inodeTable);
+        for (int i = 0; i < DIR_SIZE; ++i) {
+            if (i < 2 || i > DIR_SIZE - 3) {
+                printf("  inodeTable[%d].size = %d\n", i, inodeTable[i].size);
+            }
+        }
 
         // Load root directory
+        printf("mksfs: loading root directory...\n");
         // Load directory entries from data blocks pointed to by the root dir inode
         int dirSizeInBlocks = ceil((double)superBlock.rootDir.size / B);
         int dirBlockPointers[dirSizeInBlocks * sizeof(int)];
@@ -229,22 +301,32 @@ void mksfs(int fresh) {
             // Read root directory data block i
             read_blocks(dirBlockPointers[i], 1, dirBlocksData + (i * B));
         }   
+        printf("  %d data blocks merged into single buffer, copying to root directory...\n", dirSizeInBlocks);
         
         for (int i = 0; i < DIR_SIZE; ++i) {
             rootDirEntries[i] = ((DirEntry *) dirBlocksData)[i];
         }
         
+        printf("mksfs: root directory fully loaded (%d entries):\n", DIR_SIZE);
+        printDirectory();
+        
         // Load free bitmap
+        printf("mksfs: loading free bitmap...\n");
         read_blocks(superBlock.sfsSize - superBlock.fbmSize - 1, superBlock.fbmSize, fbm);
     }
 
+    printFreeBitmap();
+    
     // Init FDT
+    printf("mksfs: init FDT\n");
     for (int i = 0; i < FDT_SIZE; ++i) {
         FDT[i].inodeNum = -1;
     }
     
     // Init `currentFileIndex`
     currentFileIndex = 0;
+
+    printf("mksfs: initialization complete\n\n");
 }
 
 int sfs_getnextfilename(char *filename) {
@@ -266,6 +348,7 @@ int sfs_getnextfilename(char *filename) {
 }
 
 int sfs_getfilesize(const char *filename) {
+    printf("sfs_getfilesize: attempting get file size for '%s'\n", filename);
     if (strlen(filename) > MAXFILENAME) {
         fprintf(stderr, "Failed to get file size: File name is too long.\n");
         return -1;
@@ -286,10 +369,12 @@ int sfs_getfilesize(const char *filename) {
     } 
     
     // File exists, return file size
+    printf("sfs_getfilesize: file size for '%s': %d bytes\n\n", filename, inodeTable[rootDirEntries[dir_pos].inodeNum].size);
     return inodeTable[rootDirEntries[dir_pos].inodeNum].size;
 }
 
 int sfs_fopen(char *filename) {
+    printf("sfs_fopen: attempting to open '%s'\n", filename);
     if (strlen(filename) > MAXFILENAME) {
         fprintf(stderr, "Failed to open file: File name is too long.\n");
         return -1;
@@ -297,8 +382,10 @@ int sfs_fopen(char *filename) {
 
     // Look up the file in the directory
     int dir_pos = -1;
+    printf("sfs_fopen: looking in the directory...\n");
     for (int i = 0; i < DIR_SIZE; ++i) {
         if (rootDirEntries[i].used != 0 && strcmp(rootDirEntries[i].filename, filename) == 0) {
+            printf("  rootDirEntries[%d].filename = '%s' <-- FOUND\n", i, rootDirEntries[i].filename);
             dir_pos = i;
             break;
         }
@@ -308,6 +395,7 @@ int sfs_fopen(char *filename) {
     int fdt_pos = sfs_getNextFreeFDTPos(0);
 
     if (dir_pos < 0) { // File does not exist, need to 'create' a new directory entry
+        printf("sfs_fopen: '%s' does not exist, attempting to create it...\n", filename);
         if ((dir_pos = sfs_getNextFreeDirEntry(0)) < 0 ) { // Directory is full
             fprintf(stderr, "Failed to create file: The directory is full.\n");
             return -1;
@@ -328,14 +416,18 @@ int sfs_fopen(char *filename) {
         inodeTable[rootDirEntries[dir_pos].inodeNum].size = 0;
 
         // Successfully created the entry, now update the root directory on the disk
+        printf("sfs_fopen: '%s' was created at rootDirEntries[%d] (inode %d), updating disk...\n", rootDirEntries[dir_pos].filename, dir_pos, rootDirEntries[dir_pos].inodeNum);
         // Write updated inodeTable to disk
         write_blocks(1, superBlock.inodeTableSize, inodeTable);
         // Write directory entries to disk (we assume that the data blocks allocated are contiguous and in order)
         int dirSizeInBlocks = ceil((double)superBlock.rootDir.size / B);
         write_blocks(superBlock.rootDir.blockPointers[0], dirSizeInBlocks - 1, rootDirEntries);
+        printf("  root dir is stored in blocks %d to %d\n", superBlock.rootDir.blockPointers[0], superBlock.rootDir.blockPointers[0] + dirSizeInBlocks - 1);
     } else { // File exists, need to check if it's already in the FDT
+        printf("sfs_fopen: '%s' exists (rootDirEntries[%d]), checking if it's already in the FDT...\n", filename, rootDirEntries[dir_pos].inodeNum);
         for (int i = 0; i < FDT_SIZE; ++i) {
             if (FDT[i].inodeNum == rootDirEntries[dir_pos].inodeNum) { // File already in the FDT, at pos i
+                printf("sfs_fopen: '%s' is already opened at FDT[%d]\n\n", filename, i);
                 return i;
             }
         }
@@ -349,10 +441,13 @@ int sfs_fopen(char *filename) {
     // File not in FDT, but there is space for it, so open the file (add it) in append mode (read/write head at EOF)
     FDT[fdt_pos].inodeNum = rootDirEntries[dir_pos].inodeNum;
     FDT[fdt_pos].rwHeadPos = inodeTable[rootDirEntries[dir_pos].inodeNum].size;
+    printf("sfs_fopen: '%s' (inode %d) opened at FDT[%d]:\n", filename, FDT[fdt_pos].inodeNum, fdt_pos);
+    printFDT();
     return fdt_pos;
 }
 
 int sfs_fclose(int fd) {
+    printf("sfs_fclose: attempting to close the file at FDT[%d]\n", fd);
     if (fd < 0 || fd >= FDT_SIZE) {
         fprintf(stderr, "Failed to close file: the file descriptor is outside the bounds of the FDT.\n");
         return -1;
@@ -365,11 +460,15 @@ int sfs_fclose(int fd) {
 
     // FDT[fd] points to valid open file, close it
     FDT[fd].inodeNum = -1;
+    printf("sfs_fclose: file at FDT[%d] closed successfully\n\n", fd);
     return 0;
 }
 
 int sfs_fwrite(int fd, const char *buf, int length) {
+    printf("sfs_fwrite: attempting to write %d bytes to the file at FDT[%d]\n", length, fd);
+    
     if (length < 1) {
+    printf("sfs_fwrite: nothing to write (length < 1)\n\n");
         return 0;
     }
     
@@ -385,6 +484,7 @@ int sfs_fwrite(int fd, const char *buf, int length) {
     
     // `FDT[fd]` points to a valid open file
     Inode inode = inodeTable[FDT[fd].inodeNum];
+    printf("sfs_fwrite: loaded inode for file at FDT[%d]\n", fd);
     
     if (FDT[fd].rwHeadPos > inode.size) {
         fprintf(stderr, "Failed to write to file: the read/write head is beyond the end of the file.\n");
@@ -396,6 +496,7 @@ int sfs_fwrite(int fd, const char *buf, int length) {
         return -1;
     }
     
+    printf("sfs_fwrite: preparing for write...\n");
     // Get start and end bytes/blocks
     int startPos = FDT[fd].rwHeadPos;
     int endPos = startPos + length;
@@ -427,6 +528,7 @@ int sfs_fwrite(int fd, const char *buf, int length) {
     
     if (blocksToChange == 0) { // All blocks in `blocksToWriteToPointers` need to be added
         // Get new blocks
+        printf("sfs_fwrite: getting %d new blocks (%d for data)\n", blocksToWrite - blocksToChange, blocksToWriteDataTo - blocksToChange);
         for (int i = 0; i < blocksToWrite; ++i) {
             int newBlock = sfs_allocateFreeDataBlock();
             if (newBlock < 0) {
@@ -439,6 +541,7 @@ int sfs_fwrite(int fd, const char *buf, int length) {
             blocksToWritePointers[i] = newBlock;
         }
     } else { // Need to write in existing blocks
+        printf("sfs_fwrite: getting %d required existing blocks\n", blocksToChange);
         int *existingBlocksPointers = (int *) malloc(totalBlocksOld * sizeof(int));
         if (existingBlocksPointers == NULL) {
             fprintf(stderr, "Failed to write to file: ran out of memory while trying to get existing blocks.\n");
@@ -452,6 +555,7 @@ int sfs_fwrite(int fd, const char *buf, int length) {
             blocksToWritePointers[i] = existingBlocksPointers[startBlock + i];
         }
         // Get new blocks
+        printf("sfs_fwrite: getting %d new blocks (%d for data)\n", blocksToWrite - blocksToChange, blocksToWriteDataTo - blocksToChange);
         for (; i < blocksToWrite; ++i) {
             int newBlock = sfs_allocateFreeDataBlock();
             if (newBlock < 0) {
@@ -466,6 +570,13 @@ int sfs_fwrite(int fd, const char *buf, int length) {
         free(existingBlocksPointers);
     }
 
+    printf("sfs_fwrite: data blocks to write to: [%d", blocksToWritePointers[0]);
+    for (int i = 1; i < blocksToWrite; ++i) {
+        printf(", %d", blocksToWritePointers[i]);
+    }
+    printf("]\n");
+
+    printf("sfs_fwrite: updating buffer...\n");
     // Create a new buffer that includes potential existing data in the start and end blocks
     Byte newBuf[blocksToWriteDataTo * B];
     if (blocksToChange > 0) { // Copy data from `startBlock` to the front of `newBuf`
@@ -478,14 +589,26 @@ int sfs_fwrite(int fd, const char *buf, int length) {
     // Copy `buf` into `newBuf`, in between existing data from `startBlock` and `endBlock`
     for (int i = 0; i < length; ++i) {
         newBuf[startBlockStartPos + i] = buf[i];
+        if (i < 2 || i > length - 3) {
+            printf("  newBuf[%d] = ", startBlockStartPos + i);
+            printByte(&newBuf[startBlockStartPos + i]);
+            printf(" (buf[%d] = %d)\n", i, buf[i]);
+            if (i == 1 && length > 1) { 
+                printf("  ...\n");
+            }
+        }
+        
     }
 
+    printf("sfs_fwrite: writing buffer to disk...\n");
     // Write the buffer to disk
     // The block needed to write the indirect pointers is at the last index of `blocksToWrite` (if it's needed)
     for (int i = 0; i < blocksToWriteDataTo; ++i) {
+        printf("  writing block %d of %d at location %d (byte 0 = %d)\n", i + 1, blocksToWriteDataTo, blocksToWritePointers[i], (newBuf + (i * B))[0]);
         write_blocks(blocksToWritePointers[i], 1, newBuf + (i * B));
     }
 
+    printf("sfs_fwrite: updating inode data and free bitmap...\n");
     // Update the inode data
     // and update the availability of the newly allocated data blocks on the free bitmap
     if (blocksToAdd > 0) { // New blocks were added, need to update inode pointer data
@@ -493,6 +616,7 @@ int sfs_fwrite(int fd, const char *buf, int length) {
         // Update direct pointers
         for (; i < blocksToWriteDataTo && startBlock + i < 12; ++i) {
             inode.blockPointers[startBlock + i] = blocksToWritePointers[i];
+            printf("  inode.blockPointers[%d] = %d\n", startBlock + i, inode.blockPointers[startBlock + i]);
         }
 
         // Update indirect pointer block & the pointer to it (if necessary)
@@ -505,10 +629,12 @@ int sfs_fwrite(int fd, const char *buf, int length) {
             // Update indirect pointers
             for (; i < blocksToWriteDataTo; ++i) {
                 indirectBlockPointers[startBlock + i - 12] = blocksToWritePointers[i];
+                printf("  indirectBlockPointers[%d] = %d\n", startBlock + i - 12, indirectBlockPointers[startBlock + i - 12]);
             }
 
             if (totalBlocksOld <= 12) { // Pointer to indirect block needs to be updated
                 inode.blockPointers[12] = blocksToWritePointers[i];
+                printf("  inode.blockPointers[12] = %d\n", inode.blockPointers[12]);
             }
             // Write new/updated indirect pointer block to disk
             write_blocks(inode.blockPointers[12], 1, indirectBlockPointers);
@@ -519,17 +645,23 @@ int sfs_fwrite(int fd, const char *buf, int length) {
     if (FDT[fd].rwHeadPos > inode.size)
         inode.size = FDT[fd].rwHeadPos;
     
+    printf("  inode.size = %d\n", inode.size);
+    printf("  FDT[%d].rwHeadPos = %d\n", fd, FDT[fd].rwHeadPos);
+    
     // Update the inode in `inodeTable` and write the updated inodeTable back to disk
+    printf("sfs_fwrite: writing updated inode data and updated free bitmap to disk...\n");
     inodeTable[FDT[fd].inodeNum] = inode;
     write_blocks(1, superBlock.inodeTableSize, inodeTable);
     
     // Write the updated free bitmap back to disk
     write_blocks(superBlock.sfsSize - superBlock.fbmSize - 1, superBlock.fbmSize, fbm);
     
+    printf("sfs_fwrite: wrote %d bytes in file at FDT[%d] (FDT[%d].rwHeadPos = %d, new file size = %d bytes)\n\n", length, fd, fd, FDT[fd].rwHeadPos, inode.size);
     return length;
 }
 
 int sfs_fread(int fd, char *buf, int length) {
+    printf("sfs_read: attempting to read %d bytes from file at FDT[%d]\n", length, fd);
     if (fd < 0 || fd >= FDT_SIZE) {
         fprintf(stderr, "Failed to read file: the file descriptor is outside the bounds of the FDT.\n");
         return -1;
@@ -547,9 +679,11 @@ int sfs_fread(int fd, char *buf, int length) {
     if (FDT[fd].rwHeadPos + length > inode.size) {
         length = inode.size - FDT[fd].rwHeadPos;
         if (length <= 0) {
+            printf("sfs_read: read 0 bytes from file at FDT[%d] (FDT[%d].rwHeadPos = %d, file size = %d)", fd, fd, FDT[fd].rwHeadPos, inode.size);
             return 0;
         }
     }
+    printf("sfs_read: reading %d bytes, starting at byte %d (file size = %d bytes)\n", length, FDT[fd].rwHeadPos, inode.size);
     
     // Get start and end blocks
     int startBlock = FDT[fd].rwHeadPos / B;
@@ -569,16 +703,28 @@ int sfs_fread(int fd, char *buf, int length) {
     }
     free(currentBlockData);
 
+    printf("sfs_read: copying read data to buffer\n");
     int startBlockStartPos = FDT[fd].rwHeadPos % B;
+    printf("  startBlockStartPos = %d\n", startBlockStartPos);
     for (int j = 0; j < length; ++j) {
         buf[j] = loadedBlocksData[startBlockStartPos + j];
+        if (j < 2 || j > length - 3) {
+            printf("  buf[%d] = ", j);
+            printByte(&buf[j]);
+            printf(" (loadedBlocksData[%d])\n", startBlockStartPos + j);
+            if (j == 1 && length > 1) {
+                printf("  ...\n");
+            }
+        }
     }
     
     FDT[fd].rwHeadPos += length;
+    printf("sfs_read: read %d bytes from file at FDT[%d] (FDT[%d].rwHeadPos = %d)\n\n", length, fd, fd, FDT[fd].rwHeadPos);
     return length;
 }
 
 int sfs_fseek(int fd, int loc) {
+    printf("sfs_fseek: attempting to seek to byte %d of FDT[%d]\n", loc, fd);
     if (fd < 0 || fd >= FDT_SIZE) {
         fprintf(stderr, "Failed to seek in file: the file descriptor is outside the bounds of the FDT.\n");
         return -1;
@@ -595,10 +741,12 @@ int sfs_fseek(int fd, int loc) {
         return -1;
     }
     FDT[fd].rwHeadPos = loc;
+    printf("sfs_fseek: seek complete, FDT[%d].rwHeadPos = %d\n\n", fd, FDT[fd].rwHeadPos);
     return 0;
 }
 
 int sfs_remove(char *filename) {
+    printf("sfs_remove: attempting to remove '%s'\n", filename);
     if (strlen(filename) > MAXFILENAME) {
         fprintf(stderr, "Failed to remove file: File name is too long.\n");
         return -1;
@@ -620,6 +768,7 @@ int sfs_remove(char *filename) {
     }
 
     // File exists, remove it
+    printf("sfs_remove: '%s' found at position %d in the directory, removing...\n", filename, dir_pos);
     // Get Inode
     Inode inode = inodeTable[rootDirEntries[dir_pos].inodeNum];
     
@@ -647,5 +796,6 @@ int sfs_remove(char *filename) {
     write_blocks(superBlock.rootDir.blockPointers[0], dirSizeInBlocks - 1, rootDirEntries);
     write_blocks(1, superBlock.inodeTableSize, inodeTable);
     write_blocks(superBlock.sfsSize - superBlock.fbmSize - 1, superBlock.fbmSize, fbm);
+    printf("sfs_remove: '%s' was successfully removed from the file system\n\n", filename);
     return 0;
 }
