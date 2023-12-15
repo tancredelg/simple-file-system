@@ -1,6 +1,7 @@
 #ifndef SFS_API_H
 #define SFS_API_H
 
+#define MAXFILENAME 32
 
 void mksfs(int);
 

@@ -18,7 +18,6 @@
 #define N 8192 // Number of data blocks - calculated by running 'python calc_disk_alloc.py <Q>'
 #define L 1 // Number of free bitmap blocks - calculated by running 'python calc_disk_alloc.py <Q>'
 #define DIR_SIZE 2048  // Max directory size (number of files) - calculated by running 'python calc_disk_alloc.py <Q>'
-#define MAX_FILENAME_LENGTH 32
 #define MAX_FILE_SIZE (268 * B)
 #define FDT_SIZE 10
 char DISKNAME[] = "SFS_DISK";
@@ -44,7 +43,7 @@ typedef struct SuperBlock {
 
 typedef struct DirEntry {
     Byte used;
-    char filename[MAX_FILENAME_LENGTH + 1];
+    char filename[MAXFILENAME + 1];
     short inodeNum;
 } DirEntry;
 
@@ -334,7 +333,7 @@ int sfs_getnextfilename(char *filename) {
     // Look up the next used directory entry (= next file)
     for (int i = currentFileIndex; i < DIR_SIZE; ++i) {
         if (rootDirEntries[i].used == 1) {
-            if (strncpy(filename, rootDirEntries[i].filename, MAX_FILENAME_LENGTH) == NULL) {
+            if (strncpy(filename, rootDirEntries[i].filename, MAXFILENAME) == NULL) {
                 fprintf(stderr, "Failed to get filename: strcpy failed.\n");
                 return -1;
             }
@@ -350,7 +349,7 @@ int sfs_getnextfilename(char *filename) {
 
 int sfs_getfilesize(const char *filename) {
     printf("sfs_getfilesize: attempting get file size for '%s'\n", filename);
-    if (strlen(filename) > MAX_FILENAME_LENGTH) {
+    if (strlen(filename) > MAXFILENAME) {
         fprintf(stderr, "Failed to get file size: File name is too long.\n");
         return -1;
     }
@@ -376,7 +375,7 @@ int sfs_getfilesize(const char *filename) {
 
 int sfs_fopen(char *filename) {
     printf("sfs_fopen: attempting to open '%s'\n", filename);
-    if (strlen(filename) > MAX_FILENAME_LENGTH) {
+    if (strlen(filename) > MAXFILENAME) {
         fprintf(stderr, "Failed to open file: File name is too long.\n");
         return -1;
     }
@@ -748,7 +747,7 @@ int sfs_fseek(int fd, int loc) {
 
 int sfs_remove(char *filename) {
     printf("sfs_remove: attempting to remove '%s'\n", filename);
-    if (strlen(filename) > MAX_FILENAME_LENGTH) {
+    if (strlen(filename) > MAXFILENAME) {
         fprintf(stderr, "Failed to remove file: File name is too long.\n");
         return -1;
     }
