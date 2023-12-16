@@ -12,8 +12,8 @@
 
 
 // -- CONSTANTS --
-#define B 1024 // Block size - MUST SET THE SAME VALUE FOR `BLOCK_SIZE` (in disk_eum.c)
-#define Q 8306 // Total number of blocks for the file system - MUST SET THE SAME VALUE FOR `MAX_BLOCK` (in disk_eum.c)
+#define B 1024 // Block size - MUST SET THE SAME VALUE FOR `BLOCK_SIZE` (in disk_emu.c)
+#define Q 8306 // Total number of blocks for the file system - MUST SET THE SAME VALUE FOR `MAX_BLOCK` (in disk_emu.c)
 #define M 112 // Number of inode table blocks - calculated by running 'python calc_disk_alloc.py <Q>'
 #define N 8192 // Number of data blocks - calculated by running 'python calc_disk_alloc.py <Q>'
 #define L 1 // Number of free bitmap blocks - calculated by running 'python calc_disk_alloc.py <Q>'
@@ -27,7 +27,7 @@ char DISKNAME[] = "SFS_DISK";
 typedef char Byte; // Alias for char to improve comprehensibility
 
 typedef struct Inode {
-    int size; // Number of data blocks in use
+    int size; // Size of the inode's data in bytes
     int blockPointers[13]; // 0-11 = direct pointers, 12 = single-indirect pointer
 } Inode;
 
@@ -66,19 +66,16 @@ File FDT[FDT_SIZE]; // File descriptor table
 
 // Helper for single bit set (used by free bitmap)
 void setBit(Byte *bytes, int n) {
-//    n -= 1 + superBlock.inodeTableSize; // Offset from absolute address of the data block at `n`
     bytes[BYTE_OFFSET(n)] |= (1 << BIT_OFFSET(n));
 }
 
 // Helper for single bit clear (used by free bitmap)
 void clearBit(Byte *bytes, int n) {
-//    n -= 1 + superBlock.inodeTableSize; // Offset from absolute address of the data block at `n`
     bytes[BYTE_OFFSET(n)] &= ~(1 << BIT_OFFSET(n));
 }
 
 // Helper for single bit get (used by free bitmap)
 int getBit(const Byte *bytes, int n) {
-//    n -= 1 + superBlock.inodeTableSize; // Offset from absolute address of the data block at `n` 
     Byte bit = bytes[BYTE_OFFSET(n)] & (1 << BIT_OFFSET(n));
     return bit != 0;
 }
@@ -514,7 +511,8 @@ int sfs_fwrite(int fd, const char *buf, int length) {
             write_blocks(inode.blockPointers[12], 1, indirectBlockPointers);
         }
     }
-        
+
+    // Update the read/write head position and inode size (only if the write caused the file to increase in size)
     FDT[fd].rwHeadPos += length;
     if (FDT[fd].rwHeadPos > inode.size)
         inode.size = FDT[fd].rwHeadPos;
