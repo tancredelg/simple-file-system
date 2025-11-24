@@ -10,7 +10,7 @@ SOURCES= disk_emu.c sfs_api_verbose.c sfs_test2.c sfs_api.h
 #SOURCES= disk_emu.c sfs_api.c fuse_wrap_new.c sfs_api.h
 
 OBJECTS=$(SOURCES:.c=.o)
-EXECUTABLE=sfs_tlamor1
+EXECUTABLE=sfs
 
 all: $(SOURCES) $(HEADERS) $(EXECUTABLE)
 
