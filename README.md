@@ -16,7 +16,7 @@ To mount the file system and interact with it using standard Linux commands:
 1. Uncomment the FUSE source line in the `Makefile`.
 2. Run `make`.
 3. Create a mount point: `mkdir mnt`
-4. Mount SFS: `./sfs_tlamor1 mnt`
+4. Mount SFS: `./sfs mnt`
 5. Interact: `echo "Hello World" > mnt/test.txt`
 6. Unmount: `fusermount -u mnt`
 
