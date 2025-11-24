@@ -1,6 +1,26 @@
 # Simple File System
 
-## Running
+A custom, mountable file system implementation in C designed for Linux environments. This project implements a complete file system stack from scratch, including the disk emulator, superblock management, inode table, and directory handling, interfaced via FUSE (Filesystem in Userspace).
+
+## 🚀 Features
+*   **Custom Disk Emulation:** Simulates a physical disk with configurable block sizes and sector addressing.
+*   **Inode-Based Architecture:** Implements a Unix-like inode structure supporting metadata, direct block pointers, and single-indirect pointers for larger files.
+*   **Dynamic Bitmap Allocation:** Efficient free space management using a bit-level free map.
+*   **Persistence:** The file system state is fully persistent across mounts/unmounts, stored in a single container file.
+*   **FUSE Integration:** Can be mounted as a fully functional file system on Linux, supporting standard shell commands (`ls`, `touch`, `echo`, `cat`, etc.).
+*   **Optimized Layout:** calculated allocation of superblocks, inode tables, and data blocks to maximize storage efficiency based on file system size.
+
+## ⚡ Quick Start (FUSE)
+
+To mount the file system and interact with it using standard Linux commands:
+1. Uncomment the FUSE source line in the `Makefile`.
+2. Run `make`.
+3. Create a mount point: `mkdir mnt`
+4. Mount SFS: `./sfs_tlamor1 mnt`
+5. Interact: `echo "Hello World" > mnt/test.txt`
+6. Unmount: `fusermount -u mnt`
+
+## 🛠️ Running
 
 ### Makefile
 
@@ -23,7 +43,7 @@ and the amended ones.
 The 2 should the exact same under the hood, except sfs_api_verbose.c prints a load of debug information throughout it's
 execution
 
-## Design
+## 📐 Design
 
 ### Overview
 
